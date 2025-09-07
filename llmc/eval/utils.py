@@ -6,6 +6,7 @@ from loguru import logger
 from llmc.eval import (AccuracyEval, CustomGenerate, CustomGenerateJustInfer,
                        DecodePerplexityEval, HumanEval, PerplexityEval,
                        TokenConsistencyEval, VideoGenerateEval, VQAEval)
+from llmc.eval.eval_wer_asr import ASREval
 from llmc.utils import deploy_all_modality
 
 
@@ -67,6 +68,8 @@ def get_eval_list(model, config):
                             eval_class = DecodePerplexityEval(model, config_for_eval)
                         elif config_tmp.eval.type == 'video_gen':
                             eval_class = VideoGenerateEval(model, config_for_eval)
+                        elif config_tmp.eval.type == 'asr':   # 👈 NEW BRANCH
+                            eval_class = ASREval(model, config_for_eval)
                         else:
                             raise ValueError(
                                 f'Unsupported eval type: {config_tmp.eval.type}'

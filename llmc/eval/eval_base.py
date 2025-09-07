@@ -32,6 +32,7 @@ class BaseEval:
             'custom_gen',
             't2v',
             'i2v',
+            'librispeech_asr'
         ], f'Not support {self.dataset} dataset now.'
         self.seq_len = self.eval_cfg.get('seq_len', None)
         self.num_samples = self.eval_cfg.get('num_samples', None)
@@ -67,6 +68,8 @@ class BaseEval:
                     testdata = load_dataset(
                         'ptb_text_only', 'penn_treebank', split='test'
                     )
+                elif self.eval_dataset_name == 'librispeech_asr':
+                    testdata = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
             else:
                 if self.eval_dataset_name in ['custom_gen', 'custom_ppl', 't2v', 'i2v']:
                     testdata = self.get_cutomdata(self.eval_dataset_path)
@@ -128,6 +131,8 @@ class BaseEval:
                             )
                         )
             elif self.eval_dataset_name in ['t2v', 'i2v']:
+                testenc = self.testdata
+            elif self.eval_dataset_name == 'librispeech_asr':
                 testenc = self.testdata
         return testenc
 
