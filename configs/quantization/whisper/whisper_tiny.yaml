@@ -1,0 +1,66 @@
+base:
+  seed: 42
+  precision: "fp16"
+  batch_size: 4
+  num_workers: 2
+  epochs: 1
+
+model:
+  name: whisper
+  type: Whisper
+  path: "openai/whisper-tiny"   # or "openai/whisper-base", etc.
+  torch_dtype: torch.float8_e4m3fn
+  tokenizer_mode: fast
+  block_wise_quant: True
+  task: "transcribe"                  # or "translate"
+  language: "en"
+
+data:
+  train_manifest: "/path/to/train.json"   # JSONL or manifest with audio paths + transcripts
+  val_manifest: "/path/to/val.json"
+  sample_rate: 16000
+  max_duration: 30   # seconds
+  shuffle: True
+
+quant:
+    method: Awq
+    weight:
+        bit: 4
+        symmetric: False
+        granularity: per_group
+        group_size: 64
+        pack_version: gemm_pack
+    special:
+        trans: True
+        trans_version: v2
+        weight_clip: True
+        save_mem: False
+
+#save:
+#  save_path: "./checkpoints/whisper"
+#  save_trans: True
+#  save_fake: False
+#  save_lightllm: False
+#  save_autoawq: False
+#  save_vllm: False
+#  save_trtllm: False
+#  save_mlcllm: False
+#  save_lightx2v: False
+
+optim:
+  lr: 2e-5
+  weight_decay: 0.01
+  warmup_steps: 500
+  max_grad_norm: 1.0
+  scheduler: "linear"
+
+logging:
+  log_interval: 50
+  eval_interval: 1000
+
+eval:
+  type: asr          # 👈 tells get_eval_list to use ASREval
+  name: librispeech_asr
+  bs: 1
+  download: true
+  eval_pos: ["pretrain"]
