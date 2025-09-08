@@ -34,3 +34,4 @@ from .vila import Vila
 from .vit import Vit
 from .wan_i2v import WanI2V
 from .wan_t2v import WanT2V
+from .whisper import Whisper
