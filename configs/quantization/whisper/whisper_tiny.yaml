@@ -62,5 +62,15 @@ eval:
   type: asr          # 👈 tells get_eval_list to use ASREval
   name: librispeech_asr
   bs: 1
-  download: true
+  download: false
   eval_pos: ["pretrain"]
+  path: "librispeech_asr_eval"
+
+calib:
+    name: librispeech_asr
+    download: False
+    n_samples: 128
+    bs: -1
+    seq_len: 512
+    seed: 0
+    path: "librispeech_asr_calib"
