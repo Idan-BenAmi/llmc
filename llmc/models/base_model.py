@@ -295,6 +295,9 @@ class BaseModel(metaclass=ABCMeta):
             self.blocks[0] = self.blocks[0].cuda()
         self.blocks[0] = Catcher(self.blocks[0])
 
+        if torch.cuda.is_available():
+            self.model = self.model.to('cuda')
+
         for data in calib_data:
             data = {
                 k: (v.cuda() if torch.is_tensor(v) else v)
