@@ -34,3 +34,5 @@ librosa
 human_eval
 imageio
 diffusers
+jiwer
+torchcodec

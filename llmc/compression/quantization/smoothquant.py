@@ -40,7 +40,8 @@ class SmoothQuant(BaseBlockwiseQuantization):
     def get_act_scale(self, tensors):
         scale_max = None
         for x in tensors:
-            x = x.cuda()
+            if torch.cuda.is_available():
+                x = x.cuda()
             x = x.abs().view(-1, x.shape[-1])
             comming_max = torch.max(x, dim=0)[0].float()
             if scale_max is not None:

@@ -88,6 +88,8 @@ class BaseDataset(metaclass=ABCMeta):
         if not self.padding:
             if self.calib_dataset_name in ['t2v', 'i2v']:
                 calib_model_inputs = samples
+            elif self.calib_dataset_name == 'audio':
+                calib_model_inputs = self.batch_process(samples)
             elif self.calib_dataset_name == 'images':
                 calib_model_inputs = self.get_batch_process(samples)
             else:

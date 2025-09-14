@@ -9,11 +9,12 @@ model:
   name: whisper
   type: Whisper
   path: "openai/whisper-tiny"   # or "openai/whisper-base", etc.
-  torch_dtype: torch.float8_e4m3fn
+  torch_dtype: auto
   tokenizer_mode: fast
-  block_wise_quant: True
+  block_wise_quant: False
   task: "transcribe"                  # or "translate"
   language: "en"
+  use_cpu_to_save_cuda_mem_for_catcher: True
 
 data:
   train_manifest: "/path/to/train.json"   # JSONL or manifest with audio paths + transcripts
@@ -23,18 +24,17 @@ data:
   shuffle: True
 
 quant:
-    method: Awq
-    weight:
-        bit: 4
-        symmetric: False
-        granularity: per_group
-        group_size: 64
-        pack_version: gemm_pack
-    special:
-        trans: True
-        trans_version: v2
-        weight_clip: True
-        save_mem: False
+  method: SmoothQuant
+  weight:
+      bit: 8
+      symmetric: True
+      granularity: per_channel
+  act:
+      bit: 8
+      symmetric: True
+      granularity: per_token
+  special:
+      alpha: 0.75
 
 #save:
 #  save_path: "./checkpoints/whisper"
@@ -63,11 +63,11 @@ eval:
   name: librispeech_asr
   bs: 1
   download: false
-  eval_pos: ["pretrain"]
+  eval_pos: ["pretrain","fake_quant"]
   path: "librispeech_asr_eval"
 
 calib:
-    name: librispeech_asr
+    name: audio
     download: False
     n_samples: 128
     bs: -1

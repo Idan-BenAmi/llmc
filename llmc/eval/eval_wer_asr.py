@@ -1,5 +1,4 @@
 import torch
-from transformers.models.whisper.english_normalizer import EnglishTextNormalizer
 import evaluate
 from loguru import logger
 
@@ -24,28 +23,24 @@ class ASREval(BaseEval):
     def eval_func(self, model_llmc, dataset, seq_len, batch_size, eval_pos=None):
         logger.info("Starting ASR evaluation on LibriSpeech...")
 
-        predictions, references = [], []
         processor = self.model.processor
-        normalizer = EnglishTextNormalizer(english_spelling_mapping={})
         device = next(self.model.model.parameters()).device
 
-        for example in self.testdata:
-            # Extract audio
-            audio = example["audio"]["array"]
+        def map_to_pred(batch):
+            audio = batch["audio"]
+            input_features = processor(audio["array"], sampling_rate=audio["sampling_rate"],
+                                       return_tensors="pt").to(device).input_features
+            batch["reference"] = processor.tokenizer._normalize(batch['text'])
 
-            # Tokenize input
-            inputs = processor(audio, sampling_rate=16000, return_tensors="pt").to(device)
+            with torch.no_grad():
+                predicted_ids = self.model.model.generate(input_features)[0]
+            transcription = processor.decode(predicted_ids)
+            batch["prediction"] = processor.tokenizer._normalize(transcription)
+            return batch
 
-            # Run model
-            generated_ids = self.model.model.generate(inputs.input_features)
+        result = self.testdata.map(map_to_pred)
 
-            # Decode
-            transcription = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        wer = self.metric.compute(references=result["reference"], predictions=result["prediction"])
 
-            predictions.append(normalizer(transcription.lower()))
-            references.append(normalizer(example["text"].lower()))
-
-        # Compute WER
-        wer = self.metric.compute(predictions=predictions, references=references)
         logger.info(f"WER on LibriSpeech: {wer:.4f}")
         return {"wer": wer}

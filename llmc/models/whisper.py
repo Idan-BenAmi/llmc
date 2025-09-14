@@ -80,47 +80,79 @@ class Whisper(BaseModel):
         self, samples, calib_or_eval="eval", apply_chat_template=False, return_inputs=True
     ):
         """
-        Expects a list of dicts with {"audio": np.ndarray, "sampling_rate": int}
+        Turn raw audio samples into Whisper model-ready inputs.
         """
-        assert calib_or_eval in ["calib", "eval"]
-        assert not apply_chat_template
+        # device = next(self.model.model.parameters()).device
 
-        audio_arrays = [s["audio"] for s in samples]
-        sampling_rates = [s["sampling_rate"] for s in samples]
-        assert len(set(sampling_rates)) == 1, "All audios must have same sampling rate"
+        # for example in self.testdata:
+        #     # Extract audio
+        #     audio = example["audio"]["array"]
+        #
+        #     # Tokenize input
+        #     inputs = processor(audio, sampling_rate=16000, return_tensors="pt").to(device)
 
-        inputs = self.processor(
-            audio_arrays, sampling_rate=sampling_rates[0], return_tensors="pt"
-        )
+        processor = self.processor  # WhisperProcessor
+
+        inputs = []
+        for audio_item in samples["audio"]:
+            arr = audio_item["array"]
+            sr = audio_item["sampling_rate"]
+
+            input_features = processor(
+                arr, sampling_rate=sr, return_tensors="pt"
+            ).input_features
+
+            inputs.append({"input_features": input_features})
+
         return inputs
 
     def get_subsets_in_block(self, block):
-        return [
-            {
+
+        subsets = []
+
+        subsets.append({
+            "layers": {
+                "self_attn.q_proj": block.self_attn.q_proj,
+                "self_attn.k_proj": block.self_attn.k_proj,
+                "self_attn.v_proj": block.self_attn.v_proj,
+            },
+            "prev_op": [block.self_attn_layer_norm],
+            "input": ["self_attn.q_proj"],
+            "inspect": block.self_attn,
+            "has_kwargs": True,
+        })
+        # If decoder, add cross-attention (detected by presence of encoder_attn)
+        if hasattr(block, "encoder_attn"):
+            subsets.append({
                 "layers": {
-                    "self_attn.q_proj": block.self_attn.q_proj,
-                    "self_attn.k_proj": block.self_attn.k_proj,
-                    "self_attn.v_proj": block.self_attn.v_proj,
+                    "encoder_attn.q_proj": block.encoder_attn.q_proj,
+                    "encoder_attn.k_proj": block.encoder_attn.k_proj,
+                    "encoder_attn.v_proj": block.encoder_attn.v_proj,
                 },
-                "prev_op": [block.layer_norm],
-                "input": ["self_attn.q_proj"],
-                "inspect": block.self_attn,
+                "prev_op": [block.encoder_attn_layer_norm],
+                "input": ["encoder_attn.q_proj"],
+                "inspect": block.encoder_attn,
                 "has_kwargs": True,
-            },
-            {
-                "layers": {"fc1": block.fc1},
-                "prev_op": [block.layer_norm],
-                "input": ["fc1"],
-                "inspect": block.fc1,
-                "has_kwargs": False,
-                "is_mlp": True,
-            },
-            {
-                "layers": {"fc2": block.fc2},
-                "prev_op": [block.fc1],
-                "input": ["fc2"],
-                "inspect": block.fc2,
-                "has_kwargs": False,
-                "is_mlp": True,
-            },
-        ]
+            })
+
+        # Feedforward layer 1 (MLP)
+        subsets.append({
+            "layers": {"fc1": block.fc1},
+            "prev_op": [block.final_layer_norm],
+            "input": ["fc1"],
+            "inspect": block.fc1,
+            "has_kwargs": False,
+            "is_mlp": True,
+        })
+
+        # Feedforward layer 2 (MLP)
+        subsets.append({
+            "layers": {"fc2": block.fc2},
+            "prev_op": [block.fc1],
+            "input": ["fc2"],
+            "inspect": block.fc2,
+            "has_kwargs": False,
+            "is_mlp": True,
+        })
+
+        return subsets
