@@ -235,12 +235,12 @@ class Whisper(BaseModel):
         self.model.model.encoder.layers[0] = Catcher(self.model.model.encoder.layers[0])
         self.model.model.decoder.layers[0] = CatcherDecoder(self.model.model.decoder.layers[0])
 
-        if torch.cuda.is_available():
-            self.model = self.model.to('cuda')
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self.model.to(device)
 
         for data in calib_data:
             data = {
-                k: (v if torch.is_tensor(v) else v)
+                k: (v.to(device) if torch.is_tensor(v) else v)
                 for k, v in data.items()
             }
             try:
