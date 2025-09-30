@@ -11,6 +11,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 from loguru import logger
+from transformers.models.whisper.modeling_whisper import WhisperDecoderLayer
 
 from llmc.utils.registry_factory import KV_REGISTRY, TOKEN_REDUCTION_REGISTRY
 
@@ -364,11 +365,12 @@ class BaseBlockwiseQuantization(BlockwiseOpt):
             m.register_buffer('buf_qmax', torch.tensor(max_int).to(self.dev))
             m.register_buffer('buf_qmin', torch.tensor(min_int).to(self.dev))
 
-    def block_forward(self, block, input_data=None):
+    def block_forward(self, block, input_data=None, decoder_mode=False):
         output = []
 
         if input_data is None:
-            input_data = self.input['data']
+            input_data = self.input['data'] if not decoder_mode else self.decoder_input['data']
+            self.input['kwargs'] = self.input['kwargs'] if not decoder_mode else self.decoder_input['kwargs']
 
         for i in range(len(input_data)):
             input_data[i] = input_data[i].to(device=next(block.parameters()).device)
@@ -413,7 +415,13 @@ class BaseBlockwiseQuantization(BlockwiseOpt):
 
         self.block_init(block)
 
-        self.run(block, input_feat, handles)
+        if isinstance(block, WhisperDecoderLayer):
+            # Ensure decoder inputs exist
+            if not self.decoder_input:
+                raise RuntimeError("Decoder inputs not found before decoder block calibration.")
+            self.run(block, input_feat, handles, use_decoder_inputs=True)
+        else:
+            self.run(block, input_feat, handles)
 
         block = block.cpu()
         del input_feat, block
@@ -433,12 +441,15 @@ class BaseBlockwiseQuantization(BlockwiseOpt):
                 )
         return handles
 
-    def run(self, block, input_feat, handles):
+    def run(self, block, input_feat, handles, use_decoder_inputs=False):
         if not self.data_free:
             if self.quant_out:
-                self.block_forward(block)
+                self.block_forward(block, decoder_mode=use_decoder_inputs)
             else:
-                self.input['data'] = self.block_forward(block)
+                if use_decoder_inputs:
+                    self.decoder_input['data'] = self.block_forward(block, decoder_mode=True)
+                else:
+                    self.input['data'] = self.block_forward(block)
 
             for h in handles:
                 h.remove()
@@ -458,7 +469,10 @@ class BaseBlockwiseQuantization(BlockwiseOpt):
                 ),
             )
             self.set_non_linear_mode('fake_quant', block, False)
-            self.input['data'] = self.block_forward(block)
+            if use_decoder_inputs:
+                self.decoder_input['data'] = self.block_forward(block, decoder_mode=True)
+            else:
+                self.input['data'] = self.block_forward(block)
         torch.cuda.empty_cache()
 
     def block_transform(self, block, input_feat, block_kwargs):

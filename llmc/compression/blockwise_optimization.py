@@ -12,6 +12,10 @@ class BlockwiseOpt(metaclass=ABCMeta):
         self.quant_config = compress_config
         self.sparsity_config = compress_config
         self.input = input
+        if hasattr(model, "get_decoder_inputs"):
+            self.decoder_input = model.get_decoder_inputs()
+        else:
+            self.decoder_input = None
         self.padding_mask = padding_mask
         self.data_free = False if self.input else True
         self.config = config
@@ -27,6 +31,14 @@ class BlockwiseOpt(metaclass=ABCMeta):
             self.n_samples = 0
             for i in range(len(input['data'])):
                 self.n_samples += input['data'][i].shape[0]
+
+        if self.decoder_input:
+            for i in range(len(self.decoder_input['kwargs'])):
+                if 'use_cache' in self.decoder_input['kwargs'][i]:
+                    self.decoder_input['kwargs'][i].pop('use_cache')
+            for i in range(len(self.decoder_input['kwargs'])):
+                if 'past_key_value' in self.decoder_input['kwargs'][i]:
+                    self.decoder_input['kwargs'][i]['past_key_value'] = None
 
     def run_block_loop(self):
         for i in range(len(self.blocks)):
